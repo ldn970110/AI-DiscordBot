@@ -103,7 +103,7 @@ class ChatGPTCog(commands.Cog):
         prompt="你想問什麼？",
         model="選擇要使用的模型（預設為 gpt-4-turbo）", #
         remember_context="是否要在此次對話中使用並記錄歷史訊息（預設為是）"
-    )
+    ) 
     async def chatgpt(
         self,
         interaction: discord.Interaction,
@@ -152,8 +152,47 @@ class ChatGPTCog(commands.Cog):
         except Exception as e:
             print(f"Error clearing chat history for user {user_id_str}: {e}")
             await interaction.response.send_message(f"❌ 清除歷史時發生錯誤 ({type(e).__name__})。")
+    @app_commands.command(name="joke", description="讓 ChatGPT 說個笑話")
+    @app_commands.describe(topic="你希望笑話關於什麼主題？（可選）")
+    async def joke(self, interaction: discord.Interaction, topic: Optional[str] = None):
+        """讓 ChatGPT 說一個指定主題或隨機的笑話"""
+        await interaction.response.defer()
 
-    # --- 新增的指令 ---
+        try:
+            # 根據是否有主題，建立不同的提示
+            if topic:
+                prompt = f"請你說一則關於「{topic}」的繁體中文笑話，要簡短有趣。"
+            else:
+                prompt = "請你隨機說一則繁體中文笑話，要簡短有趣。"
+
+            # 呼叫 OpenAI API
+            # 對於講笑話這種簡單任務，使用 gpt-3.5-turbo 就足夠了，速度快且成本低
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "你是一個幽默的助理，專門講笑話。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.8, # 讓笑話多一點創意
+                max_tokens=150
+            )
+
+            joke_content = response.choices[0].message.content.strip()
+
+            # 使用 Embed 來美化訊息
+            embed = discord.Embed(
+                title="一個笑話來了！",
+                description=joke_content,
+                color=discord.Color.gold() # 設定一個顏色
+            )
+            if topic:
+                embed.set_footer(text=f"主題：{topic}")
+
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            print(f"Error in joke command: {e}")
+            await interaction.followup.send(f"❌ 哎呀，我的腦袋短路了，想不出笑話... ({type(e).__name__})")
     @app_commands.command(name="view_user_history", description="查看特定使用者的 ChatGPT 對話歷史紀錄 (僅限擁有者)")
     @app_commands.describe(
         user="要查看紀錄的 Discord 使用者",
