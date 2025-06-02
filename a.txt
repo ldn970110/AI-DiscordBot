@@ -1,3 +1,3 @@
 git add .
-git commit -m "second commit"
+git commit -m "data commit"
 git push

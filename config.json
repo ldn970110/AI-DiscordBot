@@ -1,0 +1,9 @@
+{
+    "default_system_prompt": "請你之後的回應一律使用繁體中文。",
+    "allowed_models": [
+        "gpt-4o",
+        "gpt-4-turbo",
+        "gpt-4",
+        "gpt-3.5-turbo"
+    ]
+}
