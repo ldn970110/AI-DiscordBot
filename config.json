@@ -5,5 +5,8 @@
         "gpt-4-turbo",
         "gpt-4",
         "gpt-3.5-turbo"
+    ],
+    "listen_channel_ids": [
+        1381466289687756951
     ]
 }
