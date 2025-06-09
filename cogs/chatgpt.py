@@ -10,13 +10,14 @@ import datetime
 class ChatGPTCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # 從 bot 物件取得 config，這是我們在 bot.py 中載入的設定檔 <--- 新增
+        # 從 bot 物件取得 config，這是我們在 bot.py 中載入的設定檔
         self.config = bot.config
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         # 在 Railway部署時，路徑要指向 volume 掛載的路徑
         self.db_path = "/data/user_chat_history.db" 
         self._init_db()
 
+    # --- 資料庫相關函式 (維持原樣) ---
     def _init_db(self):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -56,11 +57,9 @@ class ChatGPTCog(commands.Cog):
         """, (user_id,))
         system_prompt_row = cursor.fetchone()
         
-        # --- 修改這裡 ---
-        # 從 self.config 讀取預設提示，如果找不到就用一個備用的
         default_system_content = self.config.get(
             "default_system_prompt", 
-            "請用繁體中文回答。" # 這是備用提示
+            "請用繁體中文回答。"
         )
         
         if system_prompt_row:
@@ -104,6 +103,81 @@ class ChatGPTCog(commands.Cog):
         conn.close()
         return history_rows
 
+    # --- 新增：核心對話邏輯 ---
+    async def _call_chatgpt_api(self, user_id: str, prompt: str, model: str, remember_context: bool) -> str:
+        """
+        處理準備訊息、呼叫 OpenAI API 及更新資料庫的核心邏輯。
+        返回 API 的回覆內容。
+        """
+        messages_for_api = []
+        if remember_context:
+            messages_for_api = self._get_user_history_from_db(user_id, limit=11)
+            messages_for_api.append({"role": "user", "content": prompt})
+        else:
+            default_system_content = self.config.get(
+                "default_system_prompt",
+                "請用繁體中文回答。"
+            )
+            messages_for_api = [
+                {"role": "system", "content": default_system_content},
+                {"role": "user", "content": prompt}
+            ]
+
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages_for_api
+        )
+        reply_content = response.choices[0].message.content.strip()
+
+        if remember_context:
+            self._add_message_to_db(user_id, "user", prompt)
+            self._add_message_to_db(user_id, "assistant", reply_content, model_used=model)
+
+        return reply_content
+
+    # --- 新增：訊息監聽事件 ---
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        # 避免機器人回應自己或其他的機器人
+        if message.author == self.bot.user or message.author.bot:
+            return
+
+        # 檢查訊息是否提及 (mention) 機器人
+        if not self.bot.user.mentioned_in(message):
+            return
+        
+        # 忽略指令，避免衝突
+        if message.content.startswith(self.bot.command_prefix):
+            return
+            
+        # 提取 prompt (移除 mention)
+        prompt = message.content.replace(f'<@{self.bot.user.id}>', '').replace(f'<@!{self.bot.user.id}>', '').strip()
+        if not prompt: # 如果移除 mention 後沒有內容，就不處理
+            return
+
+        user_id_str = str(message.author.id)
+        # 使用預設模型和設定
+        model = "gpt-4-turbo" # 此處使用預設模型
+        remember_context = True
+
+        try:
+            # 顯示"正在輸入..."的狀態
+            async with message.channel.typing():
+                reply_content = await self._call_chatgpt_api(
+                    user_id=user_id_str,
+                    prompt=prompt,
+                    model=model,
+                    remember_context=remember_context
+                )
+            # 以回覆的方式傳送訊息
+            await message.reply(reply_content)
+
+        except Exception as e:
+            print(f"Error in on_message handler for user {user_id_str}: {e}")
+            await message.reply(f"❌ 處理你的訊息時發生錯誤 ({type(e).__name__})。")
+
+
+    # --- 修改：斜線指令 (/chatgpt) ---
     @app_commands.command(name="chatgpt", description="與 ChatGPT 對話")
     @app_commands.describe(
         prompt="你想問什麼？",
@@ -125,34 +199,20 @@ class ChatGPTCog(commands.Cog):
         await interaction.response.defer()
         user_id_str = str(interaction.user.id) 
         try:
-            messages_for_api = []
-            if remember_context:
-                messages_for_api = self._get_user_history_from_db(user_id_str, limit=11) 
-                messages_for_api.append({"role": "user", "content": prompt})
-            else:
-                # --- 修改這裡 ---
-                default_system_content = self.config.get(
-                    "default_system_prompt",
-                    "請用繁體中文回答。"
-                )
-                messages_for_api = [
-                    {"role": "system", "content": default_system_content},
-                    {"role": "user", "content": prompt}
-                ]
-            response = self.client.chat.completions.create(
+            # 呼叫重構後的核心函式
+            reply_content = await self._call_chatgpt_api(
+                user_id=user_id_str,
+                prompt=prompt,
                 model=model,
-                messages=messages_for_api
+                remember_context=remember_context
             )
-            reply_content = response.choices[0].message.content.strip()
-            if remember_context:
-                self._add_message_to_db(user_id_str, "user", prompt)
-                self._add_message_to_db(user_id_str, "assistant", reply_content, model_used=model)
             history_status = "已啟用" if remember_context else "未啟用"
             await interaction.followup.send(f"**使用模型：{model}** (歷史紀錄：{history_status})\n\n{reply_content}")
         except Exception as e:
             print(f"Error in chatgpt command for user {user_id_str}: {e}")
             await interaction.followup.send(f"❌ 發生錯誤，無法與 ChatGPT 通訊 ({type(e).__name__})。請稍後再試或聯繫管理員。")
 
+    # --- 其他指令 (維持原樣) ---
     @app_commands.command(name="clear_my_chat_history", description="清除你個人所有與 ChatGPT 的對話歷史")
     async def clear_my_chat_history(self, interaction: discord.Interaction):
         user_id_str = str(interaction.user.id)
@@ -166,7 +226,6 @@ class ChatGPTCog(commands.Cog):
     @app_commands.command(name="joke", description="讓 ChatGPT 說個笑話")
     @app_commands.describe(topic="你希望笑話關於什麼主題？（可選）")
     async def joke(self, interaction: discord.Interaction, topic: Optional[str] = None):
-        """讓 ChatGPT 說一個指定主題或隨機的笑話"""
         await interaction.response.defer()
         try:
             if topic:
@@ -196,7 +255,6 @@ class ChatGPTCog(commands.Cog):
             print(f"Error in joke command: {e}")
             await interaction.followup.send(f"❌ 哎呀，我的腦袋短路了，想不出笑話... ({type(e).__name__})")
             
-    # --- 擁有者專用指令 ---
     @app_commands.command(name="view_user_history", description="查看特定使用者的 ChatGPT 對話歷史紀錄 (僅限擁有者)")
     @app_commands.describe(
         user="要查看紀錄的 Discord 使用者",
@@ -205,7 +263,6 @@ class ChatGPTCog(commands.Cog):
     @commands.is_owner()
     async def view_user_history(self, interaction: discord.Interaction, user: discord.User, count: app_commands.Range[int, 1, 50] = 10):
         await interaction.response.defer(ephemeral=True) 
-
         user_id_to_view = str(user.id)
         history_records = self._get_raw_user_history_for_viewing(user_id_to_view, limit=count)
 
@@ -213,10 +270,6 @@ class ChatGPTCog(commands.Cog):
             await interaction.followup.send(f"🤷 找不到使用者 {user.mention} (ID: {user_id_to_view}) 的對話紀錄。", ephemeral=True)
             return
         
-        # ... 此處省略了 view_user_history 的訊息格式化與發送邏輯，維持原樣即可 ...
-        # (此處的程式碼與你原本的檔案相同，為了簡潔省略)
-        # ...
-        # 為了確保完整性，我將完整的程式碼貼上
         formatted_entries = []
         for record in reversed(history_records):
             formatted_ts = str(record["timestamp"])
@@ -229,7 +282,6 @@ class ChatGPTCog(commands.Cog):
 
         header = f"📜 使用者 {user.mention} (ID: {user_id_to_view}) 的最近 {len(history_records)} 條對話紀錄 (共查詢 {count} 條，時間由舊到新):\n---\n"
         current_message_batch = header
-        first_followup_sent = False
 
         for entry_text in formatted_entries:
             if len(current_message_batch) + len(entry_text) > 1950:
@@ -246,7 +298,6 @@ class ChatGPTCog(commands.Cog):
             await interaction.response.send_message("❌ 你沒有權限執行此指令。", ephemeral=True)
         else:
             await interaction.response.send_message(f"❌ 指令發生錯誤：{error}", ephemeral=True)
-
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ChatGPTCog(bot))
