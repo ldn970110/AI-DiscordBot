@@ -1,3 +1,12 @@
 git add .
 git commit -m "data commit"
 git push
+
+# 1. 切換回主分支
+git checkout main
+
+# 2. 拉取剛剛在 GitHub 上合併的最新內容
+git pull origin main
+
+# 3. 刪除本地已經用不到的分支
+git branch -d feature/xxx
