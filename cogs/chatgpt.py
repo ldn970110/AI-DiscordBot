@@ -10,11 +10,14 @@ import datetime
 class ChatGPTCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # 從 bot 物件取得 config，這是我們在 bot.py 中載入的設定檔
         self.config = bot.config
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        # 在 Railway部署時，路徑要指向 volume 掛載的路徑
         self.db_path = "/data/user_chat_history.db" 
+
+        # --- 新增：從 config 讀取要監聽的頻道 ID 列表 ---
+        # 我們將 ID 轉換為整數以利比對
+        self.listen_channel_ids = [int(channel_id) for channel_id in self.config.get("listen_channel_ids", [])]
+        
         self._init_db()
 
     # --- 資料庫相關函式 (維持原樣) ---
@@ -90,6 +93,7 @@ class ChatGPTCog(commands.Cog):
         conn.close()
 
     def _get_raw_user_history_for_viewing(self, user_id: str, limit: int = 10) -> list:
+        # ... 此函式維持原樣，此處省略以節省篇幅 ...
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -103,12 +107,9 @@ class ChatGPTCog(commands.Cog):
         conn.close()
         return history_rows
 
-    # --- 新增：核心對話邏輯 ---
+    # --- 核心對話邏輯 (維持原樣) ---
     async def _call_chatgpt_api(self, user_id: str, prompt: str, model: str, remember_context: bool) -> str:
-        """
-        處理準備訊息、呼叫 OpenAI API 及更新資料庫的核心邏輯。
-        返回 API 的回覆內容。
-        """
+        # ... 此函式維持原樣，此處省略以節省篇幅 ...
         messages_for_api = []
         if remember_context:
             messages_for_api = self._get_user_history_from_db(user_id, limit=11)
@@ -134,31 +135,35 @@ class ChatGPTCog(commands.Cog):
             self._add_message_to_db(user_id, "assistant", reply_content, model_used=model)
 
         return reply_content
-
-    # --- 新增：訊息監聽事件 ---
+        
+    # --- 修改：訊息監聽事件 ---
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # 避免機器人回應自己或其他的機器人
+        # 1. 忽略機器人自己或其他機器人的訊息
         if message.author == self.bot.user or message.author.bot:
             return
 
-        # 檢查訊息是否提及 (mention) 機器人
-        if not self.bot.user.mentioned_in(message):
+        # 2. 判斷訊息是否來自應監聽的範圍 (私訊 或 指定頻道)
+        is_dm = isinstance(message.channel, discord.DMChannel)
+        is_in_listen_channel = message.channel.id in self.listen_channel_ids
+
+        # 如果訊息不是來自私訊，也不在指定的監聽頻道中，就直接忽略
+        if not is_dm and not is_in_listen_channel:
             return
         
-        # 忽略指令，避免衝突
+        # 3. 忽略指令，避免與斜線指令或!指令衝突
         if message.content.startswith(self.bot.command_prefix):
             return
             
-        # 提取 prompt (移除 mention)
-        prompt = message.content.replace(f'<@{self.bot.user.id}>', '').replace(f'<@!{self.bot.user.id}>', '').strip()
-        if not prompt: # 如果移除 mention 後沒有內容，就不處理
+        # 4. 取得訊息內容作為 prompt
+        prompt = message.content.strip()
+        if not prompt: # 如果是空訊息或只有附件，也忽略
             return
 
+        # 5. 呼叫核心 API 函式進行對話
         user_id_str = str(message.author.id)
-        # 使用預設模型和設定
         model = "gpt-4-turbo" # 此處使用預設模型
-        remember_context = True
+        remember_context = True # 在監聽模式下，預設開啟歷史紀錄
 
         try:
             # 顯示"正在輸入..."的狀態
@@ -177,7 +182,9 @@ class ChatGPTCog(commands.Cog):
             await message.reply(f"❌ 處理你的訊息時發生錯誤 ({type(e).__name__})。")
 
 
-    # --- 修改：斜線指令 (/chatgpt) ---
+    # --- 其他指令 (維持原樣) ---
+    # ... /chatgpt, /clear_my_chat_history, /joke, /view_user_history 等指令維持原樣 ...
+    # ... 此處省略以節省篇幅 ...
     @app_commands.command(name="chatgpt", description="與 ChatGPT 對話")
     @app_commands.describe(
         prompt="你想問什麼？",
@@ -212,7 +219,6 @@ class ChatGPTCog(commands.Cog):
             print(f"Error in chatgpt command for user {user_id_str}: {e}")
             await interaction.followup.send(f"❌ 發生錯誤，無法與 ChatGPT 通訊 ({type(e).__name__})。請稍後再試或聯繫管理員。")
 
-    # --- 其他指令 (維持原樣) ---
     @app_commands.command(name="clear_my_chat_history", description="清除你個人所有與 ChatGPT 的對話歷史")
     async def clear_my_chat_history(self, interaction: discord.Interaction):
         user_id_str = str(interaction.user.id)
@@ -298,6 +304,7 @@ class ChatGPTCog(commands.Cog):
             await interaction.response.send_message("❌ 你沒有權限執行此指令。", ephemeral=True)
         else:
             await interaction.response.send_message(f"❌ 指令發生錯誤：{error}", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ChatGPTCog(bot))
