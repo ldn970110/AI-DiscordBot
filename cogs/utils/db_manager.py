@@ -6,8 +6,6 @@ import logging
 from typing import Optional
 
 logger = logging.getLogger("discord_bot")
-
-# 資料庫路徑，所有函式共用此設定
 DB_PATH = "/data/user_chat_history.db" 
 
 # --- 初始化函式 ---
@@ -15,7 +13,7 @@ def init_db():
     """初始化所有資料庫表格"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        # 聊天歷史紀錄表格
+        # ... (chat_history 表格維持不變)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS chat_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, role TEXT NOT NULL,
@@ -24,14 +22,18 @@ def init_db():
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_id_timestamp ON chat_history (user_id, timestamp);")
 
-        # 使用者個人化設定表格
+        # --- 修改：在 user_settings 新增 enable_search 欄位 ---
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
-                user_id TEXT PRIMARY KEY, model TEXT, remember_context INTEGER, system_prompt TEXT
+                user_id TEXT PRIMARY KEY, 
+                model TEXT, 
+                remember_context INTEGER, 
+                system_prompt TEXT,
+                enable_search INTEGER DEFAULT 0
             )
         """)
         
-        # 監聽頻道列表表格
+        # ... (listened_channels 表格維持不變)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS listened_channels (
                 channel_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL,
@@ -51,7 +53,14 @@ def get_user_settings(user_id: str, default_settings: dict) -> dict:
 
         if user_row:
             settings = dict(user_row)
-            settings["remember_context"] = bool(settings["remember_context"])
+            # --- 修改：處理新的布林值欄位 ---
+            settings["remember_context"] = bool(settings.get("remember_context", default_settings["remember_context"]))
+            settings["enable_search"] = bool(settings.get("enable_search", default_settings["enable_search"]))
+            # 確保舊用戶也有預設值
+            if "model" not in settings or settings["model"] is None:
+                settings["model"] = default_settings["model"]
+            if "system_prompt" not in settings or settings["system_prompt"] is None:
+                settings["system_prompt"] = default_settings["system_prompt"]
             return settings
         else:
             return default_settings
@@ -66,6 +75,7 @@ def update_user_setting(user_id: str, key: str, value):
         cursor.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (user_id,))
         cursor.execute(f"UPDATE user_settings SET {key} = ? WHERE user_id = ?", (value, user_id))
 
+# ... (所有 chat_history 和 listened_channels 的函式都維持原樣，此處省略以節省篇幅)
 # --- 聊天歷史 (chat_history) 相關函式 ---
 def add_message_to_db(user_id: str, role: str, content: str, model_used: Optional[str] = None):
     """新增一筆聊天紀錄"""
@@ -117,7 +127,7 @@ def get_raw_user_history_for_viewing(user_id: str, limit: int = 10) -> list:
             SELECT role, content, model_used, timestamp FROM chat_history
             WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
         """, (user_id, limit))
-        return cursor.fetchall()
+        return [dict(row) for row in cursor.fetchall()]
 
 # --- 監聽頻道 (listened_channels) 相關函式 ---
 def load_listened_channels_to_cache() -> set:
@@ -140,7 +150,6 @@ def add_listened_channel(channel_id: str, guild_id: str, user_id: str) -> bool:
             )
         return True
     except sqlite3.IntegrityError:
-        # PRIMARY KEY a-zsta-raint，表示頻道已存在
         return False
 
 def remove_listened_channel(channel_id: str) -> bool:

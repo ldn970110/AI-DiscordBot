@@ -2,6 +2,26 @@ git add .
 git commit -m "data commit"
 git push
 
+# 1. 切換到 main 分支
+git checkout main
+
+# 2. 從遠端 GitHub 拉取最新的版本，確保與線上同步
+git pull origin main
+
+# 從最新的 main 分支建立一個新分支，並立即切換過去
+# 分支名稱應清楚說明其目的，例如：
+git checkout -b feature/add-web-search
+# 或者
+git checkout -b fix/xxx
+
+# 遵循好的 commit 格式，例如：
+git commit -m "feat(profile): 增加用戶頭像上傳功能"
+
+# -u 參數會將本地分支與遠端分支建立關聯，之後只需 git push
+git push -u origin feature/user-profile-page
+
+
+
 # 1. 切換回主分支
 git checkout main
 

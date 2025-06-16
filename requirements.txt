@@ -4,3 +4,4 @@ requests
 aiohttp
 pillow
 openai
+duckduckgo-searchadd-web-search
