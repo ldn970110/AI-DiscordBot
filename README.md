@@ -38,3 +38,49 @@
 * **資料庫：** `sqlite3` (內建於 Python)，用於儲存使用者設定和對話歷史。
 
 ## 專案結構
+AI-DiscordBot/
+├── .gitignore             # Git 忽略文件
+├── bot.py                 # 機器人主程式
+├── config.json            # 機器人設定檔
+├── requirements.txt       # 專案所需函式庫列表
+└── cogs/                  # 機器人功能模組 (Cogs)
+├── chatgpt.py         # ChatGPT 對話、使用者設定、頻道管理功能
+├── main.py            # 通用指令與擁有者指令
+└── utils/             # 工具模組
+└── db_manager.py  # 資料庫管理模組
+## 安裝與設定
+
+### 前置條件
+* Python 3.8+
+* Discord 帳戶與機器人應用程式 (請確保您的機器人擁有必要的權限，例如 `message_content` intent)。
+* OpenAI API Key
+
+### 設定步驟
+1.  **複製專案：**
+    ```bash
+    git clone [https://github.com/ldn970110/AI-DiscordBot.git](https://github.com/ldn970110/AI-DiscordBot.git)
+    cd AI-DiscordBot
+    ```
+2.  **建立虛擬環境 (推薦)：**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # macOS/Linux
+    .\venv\Scripts\activate   # Windows
+    ```
+3.  **安裝依賴：**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  **配置環境變數：**
+    * 在專案根目錄下建立一個 `.env` 檔案。
+    * 填入您的 Discord Bot Token 和 OpenAI API Key：
+        ```
+        DISCORD_BOT_TOKEN=您的Discord機器人Token
+        OPENAI_API_KEY=您的OpenAIAPIKey
+        ```
+5.  **配置 `config.json` (可選)：**
+    * 您可以修改 `config.json` 中的預設系統提示、允許的 OpenAI 模型列表等設定。
+
+### 運行機器人
+```bash
+python bot.py
