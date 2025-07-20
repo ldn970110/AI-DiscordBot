@@ -1,5 +1,3 @@
-# cogs/utils/db_manager.py
-
 import sqlite3
 import datetime
 import logging
@@ -7,7 +5,7 @@ from typing import Optional
 
 logger = logging.getLogger("discord_bot")
 
-# 資料庫路徑，所有函式共用此設定
+
 DB_PATH = "/data/user_chat_history.db" 
 
 # --- 初始化函式 ---
@@ -40,7 +38,7 @@ def init_db():
         """)
     logger.info("資料庫表格初始化或檢查完畢。")
 
-# --- 使用者設定 (user_settings) 相關函式 ---
+# --- 使用者設定 (user_settings) ---
 def get_user_settings(user_id: str, default_settings: dict) -> dict:
     """獲取指定使用者的設定，若無則返回預設值"""
     with sqlite3.connect(DB_PATH) as conn:
@@ -66,7 +64,7 @@ def update_user_setting(user_id: str, key: str, value):
         cursor.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (user_id,))
         cursor.execute(f"UPDATE user_settings SET {key} = ? WHERE user_id = ?", (value, user_id))
 
-# --- 聊天歷史 (chat_history) 相關函式 ---
+# --- 聊天歷史 (chat_history) ---
 def add_message_to_db(user_id: str, role: str, content: str, model_used: Optional[str] = None):
     """新增一筆聊天紀錄"""
     with sqlite3.connect(DB_PATH) as conn:
@@ -119,7 +117,7 @@ def get_raw_user_history_for_viewing(user_id: str, limit: int = 10) -> list:
         """, (user_id, limit))
         return cursor.fetchall()
 
-# --- 監聽頻道 (listened_channels) 相關函式 ---
+# --- 監聽頻道 (listened_channels) ---
 def load_listened_channels_to_cache() -> set:
     """從資料庫載入所有監聽頻道的ID到一個集合中"""
     with sqlite3.connect(DB_PATH) as conn:

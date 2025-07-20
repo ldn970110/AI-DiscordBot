@@ -6,9 +6,9 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import signal
 import json
-import logging  # 引入 logging 模組
+import logging  
 
-# --- 優化 1：設定日誌系統 ---
+
 # 設定日誌記錄器
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
@@ -16,7 +16,7 @@ logger = logging.getLogger("discord_bot")
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
-# --- 優化 2：檢查必要的環境變數 ---
+
 # 載入環境變數
 load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -28,10 +28,7 @@ if not TOKEN:
 
 # 設定 Intents
 intents = discord.Intents.all()
-# 您也可以只啟用您需要的 Intents，這在未來是更好的做法
-# intents = discord.Intents.default()
-# intents.message_content = True
-# intents.members = True
+
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -82,7 +79,7 @@ async def reload(ctx, extension):
         logger.error(f"Failed to reload cog '{extension}': {e}")
 
 
-# --- 優化 3：更穩健的 Cog 載入函式 ---
+# --- Cog 載入函式 ---
 async def load_extensions():
     logger.info("開始載入所有 cogs...")
     for filename in os.listdir("./cogs"):
@@ -95,7 +92,7 @@ async def load_extensions():
                 logger.error(f"載入 {cog_name} 失敗. 錯誤: {e}", exc_info=True)
     logger.info("所有 cogs 載入完畢。")
 
-# --- 擁有者指令 (維持原樣) ---
+# --- 擁有者指令 ---
 @bot.command()
 @commands.is_owner()
 async def restart(ctx):
@@ -113,7 +110,7 @@ async def stop(ctx):
     logger.warning(f"Bot stop initiated by {ctx.author}.")
     await bot.close()
 
-# --- 優雅關機的訊號處理 (維持原樣，這已是很好的實踐) ---
+# --- 關機 ---
 async def graceful_shutdown(signal_type):
     logger.warning(f"收到關機訊號 {signal_type}，正在關閉機器人...")
     await bot.close()

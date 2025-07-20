@@ -6,7 +6,6 @@ from openai import OpenAI
 from typing import Optional, Literal
 import logging
 
-# --- 新增：從我們的新模組中匯入所有函式 ---
 from .utils import db_manager
 
 # 獲取日誌記錄器
@@ -24,7 +23,7 @@ class ChatGPTCog(commands.Cog):
         self.bot = bot
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
-        # --- 修改：啟動時直接呼叫 db_manager 來初始化和載入快取 ---
+        # --- 啟動時直接呼叫 db_manager 來初始化和載入快取 ---
         db_manager.init_db()
         self.listened_channel_ids_cache = db_manager.load_listened_channels_to_cache()
 
@@ -169,7 +168,7 @@ class ChatGPTCog(commands.Cog):
         embed.set_footer(text="若要修改，請在指令中直接給予新設定值。")
         await interaction.followup.send(embed=embed)
 
-    # --- 修正點 1：@app_backs.command -> @app_commands.command ---
+    # --- @app_backs.command -> @app_commands.command ---
     @app_commands.command(name="clear_my_chat_history", description="清除你個人所有與 ChatGPT 的對話歷史")
     async def clear_my_chat_history(self, interaction: discord.Interaction):
         try:
@@ -186,7 +185,7 @@ class ChatGPTCog(commands.Cog):
         await interaction.response.defer(ephemeral=True) 
         user_id_to_view = str(user.id)
         
-        # --- 修正點 2：self._get_raw... -> db_manager.get_raw... ---
+        
         history_records = db_manager.get_raw_user_history_for_viewing(user_id_to_view, limit=count)
 
         if not history_records:
