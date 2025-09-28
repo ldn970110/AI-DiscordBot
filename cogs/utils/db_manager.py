@@ -2,15 +2,19 @@ import sqlite3
 import datetime
 import logging
 from typing import Optional
+from pathlib import Path
 
 logger = logging.getLogger("discord_bot")
 
 
-DB_PATH = "/data/user_chat_history.db" 
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+DB_PATH = DATA_DIR / "user_chat_history.db"
 
 # --- 初始化函式 ---
 def init_db():
     """初始化所有資料庫表格"""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         # 聊天歷史紀錄表格
