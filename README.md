@@ -37,17 +37,6 @@
 * **環境變數管理：** `python-dotenv`
 * **資料庫：** `sqlite3` (內建於 Python)，用於儲存使用者設定和對話歷史。
 
-## 專案結構
-AI-DiscordBot/
-├── .gitignore             # Git 忽略文件
-├── bot.py                 # 機器人主程式
-├── config.json            # 機器人設定檔
-├── requirements.txt       # 專案所需函式庫列表
-└── cogs/                  # 機器人功能模組 (Cogs)
-├── chatgpt.py         # ChatGPT 對話、使用者設定、頻道管理功能
-├── main.py            # 通用指令與擁有者指令
-└── utils/             # 工具模組
-└── db_manager.py  # 資料庫管理模組
 ## 安裝與設定
 
 ### 前置條件
